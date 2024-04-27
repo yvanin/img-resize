@@ -35,12 +35,15 @@ fn get_file_paths(dir_path: &str) -> Vec<PathBuf> {
 
 fn get_img_orientation(file_path: &Path) -> Option<u32> {
     let file = std::fs::File::open(file_path).expect("Failed to open file");
-    let exif = exif::Reader::new()
+    exif::Reader::new()
         .read_from_container(&mut BufReader::new(&file))
-        .expect("Failed to read EXIF metadata");
-    exif.get_field(exif::Tag::Orientation, exif::In::PRIMARY)
-        .map(|field| field.value.as_uint().map_or(None, |u| u.get(0)))
-        .flatten()
+        .and_then(|exif| {
+            exif.get_field(exif::Tag::Orientation, exif::In::PRIMARY)
+                .and_then(|field| field.value.as_uint().ok())
+                .and_then(|u| u.get(0))
+                .ok_or(exif::Error::from("Failed to read EXIF metadata"))
+        })
+        .ok()
 }
 
 fn apply_orientation(img: image::DynamicImage, orientation: u32) -> image::DynamicImage {
